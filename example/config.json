@@ -1,0 +1,8 @@
+{
+  "host": "localhost:50051",
+  "concurrency": 500,
+  "RequestsTimes": 50000,
+  "timeout": 10,
+  "skipTLS": true,
+  "inSecure": true
+}
