@@ -34,36 +34,46 @@ func NewCockroachDB(c *CockroachDBConfig) *CockroachDB {
 }
 
 func buildCockroachDBConnectionString(c *CockroachDBConfig) string {
-	// 参考 https://www.cockroachlabs.com/docs/stable/connection-parameters.html
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?application_name=%s&sslmode=%s",
 		c.User, c.Password, c.Host, c.Port, c.Database, c.ApplicationName, c.SSLMode)
 }
 
-func buildQuery(tableName string, attributes []string, conditions []KeyPair) string {
+func buildQuery(tableName string, attributes []string, conditions []KeyPair, count int) string {
 	sb := strings.Builder{}
 	sb.WriteString("SELECT")
 	if len(attributes) == 0 {
 		sb.WriteString(" *")
 	} else {
 		for i := 0; i < len(attributes); i++ {
-			sb.WriteString(" ")
+			sb.WriteString(" \"")
 			sb.WriteString(attributes[i])
+			sb.WriteString("\"")
 			if i != len(attributes)-1 {
 				sb.WriteString(",")
 			}
 		}
 	}
-	sb.WriteString(" FROM ")
+	sb.WriteString(" FROM \"")
 	sb.WriteString(tableName)
-	sb.WriteString(" WHERE ")
-	for i := 0; i < len(conditions); i++ {
-		sb.WriteString(conditions[i].key)
-		sb.WriteString(" = $")
-		sb.WriteString(fmt.Sprintf("%d", i+1))
-		if i != len(conditions)-1 {
-			sb.WriteString(" AND ")
+	sb.WriteString("\"")
+	if len(conditions) > 0 {
+		sb.WriteString(" WHERE ")
+		for i := 0; i < len(conditions); i++ {
+			sb.WriteString("\"")
+			sb.WriteString(conditions[i].key)
+			sb.WriteString("\"")
+			sb.WriteString(" = $")
+			sb.WriteString(fmt.Sprintf("%d", i+1))
+			if i != len(conditions)-1 {
+				sb.WriteString(" AND ")
+			}
 		}
 	}
+	if count > 0 {
+		sb.WriteString(" LIMIT ")
+		sb.WriteString(fmt.Sprintf("%d", count))
+	}
+	fmt.Println(sb.String())
 	return sb.String()
 }
 
@@ -103,15 +113,20 @@ func buildUpdate(tableName string, keyPairs, conditions []KeyPair) string {
 			sb.WriteString(",")
 		}
 	}
-	sb.WriteString(" WHERE ")
-	for i := 0; i < len(conditions); i++ {
-		sb.WriteString(conditions[i].key)
-		sb.WriteString(" = $")
-		sb.WriteString(fmt.Sprintf("%d", i+len(keyPairs)+1))
-		if i != len(conditions)-1 {
-			sb.WriteString(" AND ")
+	if len(conditions) > 0 {
+		sb.WriteString(" WHERE ")
+		for i := 0; i < len(conditions); i++ {
+			sb.WriteString("\"")
+			sb.WriteString(conditions[i].key)
+			sb.WriteString("\"")
+			sb.WriteString(" = $")
+			sb.WriteString(fmt.Sprintf("%d", i+len(keyPairs)+1))
+			if i != len(conditions)-1 {
+				sb.WriteString(" AND ")
+			}
 		}
 	}
+
 	return sb.String()
 }
 
@@ -119,25 +134,30 @@ func buildDelete(tableName string, conditions []KeyPair) string {
 	sb := strings.Builder{}
 	sb.WriteString("DELETE FROM ")
 	sb.WriteString(tableName)
-	sb.WriteString(" WHERE ")
-	for i := 0; i < len(conditions); i++ {
-		sb.WriteString(conditions[i].key)
-		sb.WriteString(" = $")
-		sb.WriteString(fmt.Sprintf("%d", i+1))
-		if i != len(conditions)-1 {
-			sb.WriteString(" AND ")
+	if len(conditions) > 0 {
+		sb.WriteString(" WHERE ")
+		for i := 0; i < len(conditions); i++ {
+			sb.WriteString("\"")
+			sb.WriteString(conditions[i].key)
+			sb.WriteString("\"")
+			sb.WriteString(" = $")
+			sb.WriteString(fmt.Sprintf("%d", i+1))
+			if i != len(conditions)-1 {
+				sb.WriteString(" AND ")
+			}
 		}
 	}
+
 	return sb.String()
 }
 
 func (c *CockroachDB) QueryRow(tableName string, attributes []string, conditions []KeyPair) pgx.Row {
-	row := c.conn.QueryRow(context.Background(), buildQuery(tableName, attributes, conditions))
+	row := c.conn.QueryRow(context.Background(), buildQuery(tableName, attributes, conditions, 0))
 	return row
 }
 
-func (c *CockroachDB) QueryRows(tableName string, attributes []string, conditions []KeyPair) pgx.Rows {
-	rows, err := c.conn.Query(context.Background(), buildQuery(tableName, attributes, conditions))
+func (c *CockroachDB) QueryRows(tableName string, attributes []string, conditions []KeyPair, count int) pgx.Rows {
+	rows, err := c.conn.Query(context.Background(), buildQuery(tableName, attributes, conditions, count))
 	if err != nil {
 		panic(err)
 	}

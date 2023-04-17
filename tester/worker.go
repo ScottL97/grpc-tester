@@ -2,7 +2,6 @@ package tester
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -26,11 +25,17 @@ type Worker struct {
 }
 
 func NewWorker(request string, mtd *desc.MethodDescriptor, stub *grpcdynamic.Stub) *Worker {
-	fmt.Println("new worker")
 	return &Worker{
 		msg:  createPayloadFromJSON(request, mtd),
 		stub: stub,
 		mtd:  mtd,
+	}
+}
+
+func (w *Worker) makeUnaryRequestSequentially(ctx *context.Context) {
+	_, err := w.stub.InvokeRpc(*ctx, w.mtd, w.msg)
+	if err != nil {
+		panic(err)
 	}
 }
 
